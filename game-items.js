@@ -27,7 +27,8 @@ class Item {
         this.npcPrice = itemData.npcPrice || 0;                              // ราคาNPC (ราคาขายคืนให้ร้านค้า)
         this.imageUrl = itemData.imageUrl || "https://placehold.co/64x64.png"; // URLรูป
         this.sourceId = itemData.sourceId || "unknown";                      // IDแหล่งที่มา (เช่น IDมอนสเตอร์ที่ดรอป หรือ IDเควสต์ที่แจก)
-
+        this.Itemrating = itemData.sourceId || 1;     
+        this.Itemclass = itemData.sourceId || 1;     
         // จำนวนปัจจุบันของไอเท็มชิ้นนี้ในช่องเก็บของนั้น ๆ
         this.quantity = itemData.quantity || 1;
     }
