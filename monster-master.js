@@ -1,17 +1,24 @@
-// นำเข้าคำสั่งจัดการ Realtime Database ของ Firebase v9 มาเตรียมไว้
+// นำเข้าฟังก์ชันจัดการ Realtime Database ของ Firebase v9
 import { ref, push, set, onValue, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
-// ส่งออกฟังก์ชันหลักเพื่อให้ Blogspot เรียกใช้งาน และรับค่า db เข้ามาทำงาน
+// ส่งออกฟังก์ชันหลักเพื่อให้หน้า Blogspot เรียกใช้งาน
 export function initMonsterMaster(db) {
     
+    // ลบข้อความ "กำลังโหลดสคริปต์ระบบ..." ออกทันทีที่ฟังก์ชันเริ่มทำงาน
+    const listBody = document.getElementById('monsterListBody');
+    if (listBody) {
+        listBody.innerHTML = '<tr><td colspan="6" style="text-align:center;">🔍 กำลังเรียกดูข้อมูลจาก Firebase...</td></tr>';
+    }
+
+    // ค่าโบนัสสเตตัสตามสายอาชีพและระดับ (ปรับแต่งตัวเลขได้ตามต้องการ)
     const PROFESSION_BONUSES = {
+        villager:      { str: 0, agi: 0, int: 0, vit: 0, dex: 0, lux: 0 },
         swordsman:     { str: 6, agi: 4, int: 0, vit: 4, dex: 2, lux: 0 },
         shieldman:     { str: 3, agi: 1, int: 0, vit: 8, dex: 2, lux: 2 },
         gunner:        { str: 2, agi: 5, int: 1, vit: 1, dex: 6, lux: 1 },
         artillerist:   { str: 5, agi: 0, int: 6, vit: 2, dex: 3, lux: 0 },
         flamethrower:  { str: 4, agi: 2, int: 1, vit: 5, dex: 3, lux: 1 },
-        mechanic:      { str: 1, agi: 2, int: 5, vit: 1, dex: 4, lux: 3 },
-        villager:      { str: 0, agi: 0, int: 0, vit: 0, dex: 0, lux: 0 }
+        mechanic:      { str: 1, agi: 2, int: 5, vit: 1, dex: 4, lux: 3 }
     };
 
     const TIER_BONUSES = {
@@ -21,7 +28,7 @@ export function initMonsterMaster(db) {
         LastBoss: { str: 80, agi: 80, int: 80, vit: 80, dex: 80, lux: 80 }
     };
 
-    // ฟังก์ชันภายในสำหรับคำนวณสเตตัส
+    // ฟังก์ชันคำนวณสเตตัสสุทธิ
     function calculateStats() {
         const profession = document.getElementById('monsterProfession')?.value || 'villager';
         const tier = document.getElementById('monsterTier')?.value || 'Normal';
@@ -48,32 +55,38 @@ export function initMonsterMaster(db) {
         };
     }
 
-    // ตั้งค่าตัวตรวจจับ Event (Form & Inputs)
-    const form = document.getElementById('monsterForm');
-    const previewElement = document.getElementById('statPreview');
+    // เปิดการตรวจจับ Event ของ Input เพื่ออัปเดตกล่องพรีวิวเรียลไทม์
+    const form = document.getElementById('monsterForm') || document.querySelector('form');
+    const previewElement = document.getElementById('statPreview') || document.querySelector('[id*="Preview"]') || document.querySelector('.preview-box');
 
-    if (form && previewElement) {
-        const inputsToWatch = ['monsterProfession', 'monsterTier', 'baseStr', 'baseAgi', 'baseInt', 'baseVit', 'baseDex', 'baseLux'];
-        inputsToWatch.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) {
-                el.addEventListener('input', () => {
-                    const final = calculateStats();
+    const inputsToWatch = ['monsterProfession', 'monsterTier', 'baseStr', 'baseAgi', 'baseInt', 'baseVit', 'baseDex', 'baseLux'];
+    inputsToWatch.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', () => {
+                const final = calculateStats();
+                if (previewElement) {
                     previewElement.innerText = `STR: ${final.str} | AGI: ${final.agi} | INT: ${final.int} | VIT: ${final.vit} | DEX: ${final.dex} | LUX: ${final.lux}`;
-                });
-            }
-        });
+                }
+            });
+        }
+    });
 
-        // ดักฟังการกดปุ่ม Submit เพื่อเซฟลง Realtime Database
+    // ดักจับการกดปุ่มบันทึกข้อมูล (Submit Form) ลง Firebase
+    if (form) {
         form.addEventListener('submit', (e) => {
             e.preventDefault();
             
-            const name = document.getElementById('monsterName').value.trim();
-            const thaiName = document.getElementById('monsterThaiName').value.trim();
-            const profession = document.getElementById('monsterProfession').value;
-            const tier = document.getElementById('monsterTier').value;
+            const nameEl = document.getElementById('monsterName') || document.querySelector('input[type="text"]');
+            const thaiNameEl = document.getElementById('monsterThaiName') || document.querySelectorAll('input[type="text"]')[1];
+            
+            const name = nameEl ? nameEl.value.trim() : 'Unknown';
+            const thaiName = thaiNameEl ? thaiNameEl.value.trim() : '-';
+            const profession = document.getElementById('monsterProfession')?.value || 'villager';
+            const tier = document.getElementById('monsterTier')?.value || 'Normal';
             const finalStats = calculateStats();
 
+            // เชื่อมต่อฐานข้อมูลไปยัง Node: master_monster_database
             const dbRef = ref(db, 'master_monster_database');
             const newMonsterRef = push(dbRef);
             const autoID = newMonsterRef.key;
@@ -84,30 +97,36 @@ export function initMonsterMaster(db) {
                 thaiName: thaiName,
                 tier: tier,
                 profession: profession,
-                baseStats: finalStats
+                baseStats: finalStats,
+                timestamp: Date.now()
             })
             .then(() => {
-                alert(`🎉 บันทึกพิมพ์เขียวลงคลังสำเร็จ!\nAutoID: ${autoID}`);
+                alert(`🎉 บันทึกพิมพ์เขียวมอนสเตอร์ลง Firebase สำเร็จ!\nรหัส AutoID: ${autoID}`);
                 form.reset();
+                // รีเซ็ตค่า Input กลับเป็น 1
                 ['baseStr', 'baseAgi', 'baseInt', 'baseVit', 'baseDex', 'baseLux'].forEach(id => {
                     const input = document.getElementById(id);
                     if (input) input.value = 1;
                 });
-                previewElement.innerText = `STR: 1 | AGI: 1 | INT: 1 | VIT: 1 | DEX: 1 | LUX: 1`;
+                if (previewElement) {
+                    previewElement.innerText = `STR: 1 | AGI: 1 | INT: 1 | VIT: 1 | DEX: 1 | LUX: 1`;
+                }
             })
-            .catch(err => alert("เกิดปัญหาจากฝั่ง Firebase: " + err.message));
+            .catch(err => {
+                alert("❌ เกิดข้อผิดพลาดจาก Firebase: " + err.message);
+            });
         });
     }
 
-    // ดึงข้อมูลมาสร้างตาราง Realtime ด้านล่าง
-    const listBody = document.getElementById('monsterListBody');
+    // ดึงข้อมูลมอนสเตอร์ทั้งหมดมาแสดงผลในตารางแบบ Realtime
     if (listBody) {
         const dbRef = ref(db, 'master_monster_database');
         
         onValue(dbRef, (snapshot) => {
             listBody.innerHTML = '';
+            
             if (!snapshot.exists()) {
-                listBody.innerHTML = '<tr><td colspan="6" style="text-align:center;">📭 ยังไม่มีข้อมูลมอนสเตอร์ในฐานข้อมูลหลัก</td></tr>';
+                listBody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:15px;">📭 ยังไม่มีข้อมูลมอนสเตอร์ในฐานข้อมูลหลัก</td></tr>';
                 return;
             }
 
@@ -116,23 +135,29 @@ export function initMonsterMaster(db) {
                 const st = monster.baseStats || { str:1, agi:1, int:1, vit:1, dex:1, lux:1 };
                 const tr = document.createElement('tr');
                 
-                tr.innerHTML = '<td><code>' + monster.autoID + '</code></td>' +
-                               '<td><strong>' + monster.name + '</strong><br/><small style="color:#7f8c8d;">(' + monster.thaiName + ')</small></td>' +
-                               '<td><mark>' + monster.profession + '</mark></td>' +
-                               '<td><span class="badge tier-' + monster.tier + '">' + monster.tier + '</span></td>' +
-                               '<td><small style="background:#2c3e50; color:#fff; padding:2px 5px; border-radius:3px;">S:' + st.str + ' A:' + st.agi + ' I:' + st.int + ' V:' + st.vit + ' D:' + st.dex + ' L:' + st.lux + '</small></td>' +
-                               '<td><button class="btn-delete" data-id="' + monster.autoID + '">🗑️</button></td>';
+                tr.innerHTML = `
+                    <td><code>${monster.autoID || childSnapshot.key}</code></td>
+                    <td><strong>${monster.name}</strong><br/><small style="color:#7f8c8d;">(${monster.thaiName})</small></td>
+                    <td><mark>${monster.profession}</mark></td>
+                    <td><span class="badge tier-${monster.tier}">${monster.tier}</span></td>
+                    <td>
+                        <small style="background:#2c3e50; color:#fff; padding:3px 6px; border-radius:3px; display:inline-block;">
+                            S:${st.str} A:${st.agi} I:${st.int} V:${st.vit} D:${st.dex} L:${st.lux}
+                        </small>
+                    </td>
+                    <td><button class="btn-delete" data-id="${childSnapshot.key}">🗑️</button></td>
+                `;
                 
-                // ผูก Event ปุ่มลบในระบบ Module
+                // ผูกระบบปุ่มลบข้อมูลมอนสเตอร์ออกจากคลัง
                 const deleteBtn = tr.querySelector('.btn-delete');
                 if (deleteBtn) {
                     deleteBtn.addEventListener('click', () => {
                         const id = deleteBtn.getAttribute('data-id');
-                        if (confirm('🚨 ยืนยันที่จะลบพิมพ์เขียวรหัส [' + id + '] หรือไม่?')) {
-                            const itemRef = ref(db, 'master_monster_database/' + id);
+                        if (confirm(`🚨 ยืนยันที่จะลบพิมพ์เขียวมอนสเตอร์รหัส [ ${id} ] หรือไม่?`)) {
+                            const itemRef = ref(db, `master_monster_database/${id}`);
                             remove(itemRef)
-                            .then(() => alert("ลบข้อมูลพิมพ์เขียวสำเร็จ"))
-                            .catch(err => alert("ผิดพลาด: " + err.message));
+                            .then(() => alert("ลบข้อมูลออกจากคลังสำเร็จแล้ว"))
+                            .catch(err => alert("เกิดข้อผิดพลาดในการลบ: " + err.message));
                         }
                     });
                 }
