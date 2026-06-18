@@ -1,5 +1,5 @@
 // นำเข้าฟังก์ชันจัดการ Realtime Database ของ Firebase v9
-import { ref, push, set, onValue, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
+
 
 // ส่งออกฟังก์ชันหลักเพื่อให้หน้า Blogspot เรียกใช้งาน
 export function initMonsterMaster(db) {
